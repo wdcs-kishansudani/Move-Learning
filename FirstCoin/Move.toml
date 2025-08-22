@@ -1,0 +1,16 @@
+[package]
+name = "FirstCoin"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = '4ddf443c6ee3bd92997b44e182ffb92e41c9de01124e9ad3366eed5ba1f36d0d'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
