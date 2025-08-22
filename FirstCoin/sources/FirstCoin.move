@@ -25,5 +25,14 @@ module my_addrx::FirstCoin {
 
         let balance = aptos_framework::coin::balance<FirstCoin>(addrx);
         assert!(balance == 100 * 100_000_000, 1);
+
+        let alice = aptos_framework::account::create_account_for_test(@0x2);
+        let alice_addrx = signer::address_of(&alice);
+
+        aptos_framework::coin::transfer<FirstCoin>(admin, alice_addrx, 10 * 100_000_000);
+        let alice_balance = aptos_framework::coin::balance<FirstCoin>(alice_addrx);
+        let admin_balance = aptos_framework::coin::balance<FirstCoin>(addrx);
+        assert!(alice_balance == 10 * 100_000_000, 2);
+        assert!(admin_balance == 90 * 100_000_000, 2);
     }
 }
