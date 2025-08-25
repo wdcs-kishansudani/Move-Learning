@@ -1,0 +1,22 @@
+[package]
+name = "Resource Account Deployer"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = 'd27dd48573d3bf584bfad64e2147487c3b6681421530af35f896eaf54895a7f2'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dependencies.AptosTokenObjects]
+git = "https://github.com/aptos-labs/aptos-core.git"
+subdir = "aptos-move/framework/aptos-token-objects"
+rev = "mainnet"
+
+
+[dev-dependencies]
