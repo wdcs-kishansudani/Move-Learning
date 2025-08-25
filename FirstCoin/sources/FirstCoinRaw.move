@@ -50,6 +50,15 @@ module my_addrx::FirstCoinRaw {
         coin::register<FirstCoinRaw>(account);
     }
 
+    public entry fun transferOwnership(admin: &signer, new_admin: &signer) acquires Capabilities {
+        let addrx = signer::address_of(admin);
+        assert!(exists<Capabilities>(addrx), ENO_CAP);
+
+        let cap = move_from<Capabilities>(addrx);
+
+        move_to<Capabilities>(new_admin, cap);
+    }
+
     #[test(framework = @aptos_framework,admin = @my_addrx)]
     fun test_flow(framework: &signer, admin: &signer) acquires Capabilities {
         let addrx = signer::address_of(admin);
@@ -79,5 +88,39 @@ module my_addrx::FirstCoinRaw {
         burn(admin, alice_addrx, 10 * 100_000_000);
         let alice_balance = aptos_framework::coin::balance<FirstCoinRaw>(alice_addrx);
         assert!(alice_balance == 10 * 100_000_000, 5);
+    }
+
+    #[test(framework = @aptos_framework,admin = @my_addrx)]
+    fun test_transferOwnership(framework: &signer, admin: &signer) acquires Capabilities {
+        let addrx = signer::address_of(admin);
+        aptos_framework::coin::create_coin_conversion_map(framework);
+        init_module(admin);
+
+        let alice = aptos_framework::account::create_account_for_test(@0x2);
+        let alice_addrx = signer::address_of(&alice);
+
+        mint(admin, alice_addrx, 100 * 100_000_000);
+        transferOwnership(admin, &alice);
+        let alice_balance = aptos_framework::coin::balance<FirstCoinRaw>(alice_addrx);
+        assert!(alice_balance == 100 * 100_000_000, 1);
+
+        assert!(!exists<Capabilities>(addrx), 2);
+        assert!(exists<Capabilities>(alice_addrx), 3);
+
+        mint(&alice, alice_addrx, 100 * 100_000_000);
+        let alice_balance = aptos_framework::coin::balance<FirstCoinRaw>(alice_addrx);
+        assert!(alice_balance == 200 * 100_000_000, 4);
+    }
+
+    #[test(framework = @aptos_framework,admin = @my_addrx)]
+    #[expected_failure(abort_code = ENO_CAP)]
+    fun test_fail_mint(framework: &signer, admin: &signer) acquires Capabilities {
+        aptos_framework::coin::create_coin_conversion_map(framework);
+        init_module(admin);
+
+        let alice = aptos_framework::account::create_account_for_test(@0x2);
+        let alice_addrx = signer::address_of(&alice);
+
+        mint(&alice, alice_addrx, 100 * 100_000_000);
     }
 }
