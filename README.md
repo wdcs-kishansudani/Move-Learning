@@ -1,6 +1,23 @@
 # Aptos Move Level-Check Exercises
 ## Move hands on exercise to learn Aptos move language
 
+#### 🌱 Beginner Level
+- [X] HelloMove Module
+- [X] Account Balance Query
+- [X] Basic Counter Resource
+- [X] Simple Transfer
+#### ⚡ Intermediate Level
+- [X] Vault Resource (COIN)
+- [X] NFT Minting
+- [X] Access Control
+- [X] Composed Transaction (NFT + COIN)
+#### 🚀 Advanced Level
+- [] Resource Account Deployer
+- [X] Secondary Store (FA + Store)
+- [X] Nested Objects (NFT + Object)
+- [] Module Upgrade with State Preservation
+- [] Unit Tests
+
 ## 🌱 Beginner Level (Foundations)
 
 ### Prerequisites
