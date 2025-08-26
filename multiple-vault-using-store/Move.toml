@@ -1,0 +1,16 @@
+[package]
+name = "multiple_vault"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = "60c254dcc39def57ecf481e6b9182a44b51b9ae9fb76f7eb634978f33cae5097"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
