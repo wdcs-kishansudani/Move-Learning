@@ -12,11 +12,11 @@
 - [X] Access Control
 - [X] Composed Transaction (NFT + COIN)
 #### 🚀 Advanced Level
-- [] Resource Account Deployer
+- [ ] Resource Account Deployer
 - [X] Secondary Store (FA + Store)
 - [X] Nested Objects (NFT + Object)
-- [] Module Upgrade with State Preservation
-- [] Unit Tests
+- [ ] Module Upgrade with State Preservation
+- [ ] Unit Tests
 
 ## 🌱 Beginner Level (Foundations)
 
