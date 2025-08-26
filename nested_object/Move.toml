@@ -1,0 +1,22 @@
+[package]
+name = "NastedObject"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = 'ec2fbb5a84f97b3c8ca3fe3366eac9435f12553976feadf66fa82883b8573c43'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+
+[dependencies.AptosTokenObjects]
+git = "https://github.com/aptos-labs/aptos-core.git"
+subdir = "aptos-move/framework/aptos-token-objects"
+rev = "mainnet"
+
+[dev-dependencies]
