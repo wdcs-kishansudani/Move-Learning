@@ -16,7 +16,7 @@
 - [X] Secondary Store (FA + Store)
 - [X] Nested Objects (NFT + Object)
 - [ ] Module Upgrade with State Preservation
-- [ ] Unit Tests
+- [X] Unit Tests
 
 ## 🌱 Beginner Level (Foundations)
 
