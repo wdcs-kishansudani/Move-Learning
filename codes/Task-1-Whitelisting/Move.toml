@@ -1,0 +1,16 @@
+[package]
+name = "Whitelisting"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = '0b71f03786bd075cf4b7595c14b9d6d59877c002c9b8fd75c109841725d81d34'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
