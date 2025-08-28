@@ -1,0 +1,16 @@
+[package]
+name = "module_upgrade"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = '04f25ad266b14283d44ac0d8b0e1315a229573c53af34f28924bda2863f52739'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
