@@ -8,23 +8,35 @@ module my_addrx::Vault {
     use aptos_framework::object::{Self, Object};
     use aptos_framework::fungible_asset::{Self, Metadata, FungibleStore};
 
+    // Error codes
+    /// Signer is not the owner
     const ENOT_ADMIN: u64 = 0;
+    /// Module already initialized
     const EALREADY_INITIALIZED: u64 = 1;
+    /// Module not initialized
     const ENOT_INITIALIZED: u64 = 2;
+    /// Address is not whitelisted
     const ENOT_WHITELISTED: u64 = 3;
+    /// Address is already whitelisted
     const EALREADY_WHITELISTED: u64 = 4;
+    /// Invalid deposit amount
     const EINVALID_DEPOSITAMOUNT: u64 = 5;
+    /// Invalid withdrawal amount
     const EINVALID_WITHDRAWALAMOUNT: u64 = 6;
+    /// Invalid Amount
     const EINVALID_AMOUNT: u64 = 7;
 
+    // Seeds
     const TREASURY_SEED: vector<u8> = b"This TREASURY SEED!!!";
 
+    /// System info store, contains signer cap for signing resource account withdrawal transactions, vault addr, FA metadata
     struct System has key {
         vault_addr: address,
         signer_capablity: SignerCapability,
         metadata: Object<Metadata>
     }
 
+    /// Vault info, address deposited amount, address whitelisted
     struct VaultInfo has key, store {
         whitelisted: SimpleMap<address, bool>,
         whitelisted_amount: SimpleMap<address, u64>
@@ -52,6 +64,9 @@ module my_addrx::Vault {
         user: address
     }
 
+    /// Initialize the module
+    /// It will create resource account for holding the module
+    /// and create primary store for vault
     public entry fun create_vault_module(
         admin: &signer, m: Object<Metadata>
     ) {
@@ -84,6 +99,7 @@ module my_addrx::Vault {
         );
     }
 
+    /// Check if the signer is the owner
     fun assert_is_owner(admin: &address) {
         assert!(*admin == @my_addrx, ENOT_ADMIN);
     }
@@ -92,12 +108,14 @@ module my_addrx::Vault {
         assert!(exists<System>(@my_addrx), ENOT_INITIALIZED);
     }
 
+    /// Check if the address is whitelisted
     fun assert_is_whitelisted(user: &address) acquires System, VaultInfo {
         let vault_addr = vault_address();
         let whitelisted = &borrow_global<VaultInfo>(vault_addr).whitelisted;
         assert!(*simple_map::borrow(whitelisted, user) == true, ENOT_WHITELISTED);
     }
 
+    /// Check if the address is already whitelisted
     fun assert_is_already_whitelisted(user: &address) acquires System, VaultInfo {
         let vault_addr = vault_address();
         let whitelisted = &borrow_global<VaultInfo>(vault_addr).whitelisted;
@@ -106,6 +124,7 @@ module my_addrx::Vault {
         };
     }
 
+    /// Remove an address from the whitelist
     fun remove_whitelisted(user: &address) acquires System, VaultInfo {
         assert_is_whitelisted(user);
         let vault_addr = vault_address();
@@ -115,6 +134,8 @@ module my_addrx::Vault {
         event::emit(Unwhitelisted { user: *user });
     }
 
+    /// deposit amount from user to vault
+    /// this will be transfer between user primary store and vault primary store
     fun deposit(user: &signer, amount: u64) acquires System, VaultInfo {
         let user_addrx = &signer::address_of(user);
         let vault_addr = vault_address();
@@ -149,6 +170,8 @@ module my_addrx::Vault {
         );
     }
 
+    /// withdraw amount from vault to user
+    /// this will be transfer between vault primary store and user primary store
     fun whithdraw(user: &signer, amount: u64) acquires System, VaultInfo {
         let user_addrx = &signer::address_of(user);
         let vault_addr = vault_address();
@@ -182,6 +205,7 @@ module my_addrx::Vault {
         );
     }
 
+    /// Add an address to the whitelist
     public entry fun whitelist_address(admin: &signer, user: address) acquires System, VaultInfo {
         assert_is_initialized();
         let admin_addrx = &signer::address_of(admin);
@@ -197,6 +221,7 @@ module my_addrx::Vault {
         event::emit(Whitelisted { user: user });
     }
 
+    /// Add multiple addresses to the whitelist
     public entry fun whitelist_batch(
         admin: &signer, users: vector<address>
     ) acquires System, VaultInfo {
@@ -220,6 +245,7 @@ module my_addrx::Vault {
         simple_map::add_all(&mut vault.whitelisted, users, vec);
     }
 
+    /// Remove an address from the whitelist
     public entry fun remove_address_from_whitelist(
         admin: &signer, user: address
     ) acquires System, VaultInfo {
@@ -230,6 +256,7 @@ module my_addrx::Vault {
         remove_whitelisted(&user);
     }
 
+    /// Remove multiple addresses from the whitelist
     public entry fun remove_addresses_from_whitelist(
         admin: &signer, users: vector<address>
     ) acquires System, VaultInfo {
@@ -249,6 +276,7 @@ module my_addrx::Vault {
         };
     }
 
+    /// Deposit funds but only from the whitelisted address
     public entry fun deposit_amount(user: &signer, amount: u64) acquires System, VaultInfo {
         assert_is_initialized();
         let account = &signer::address_of(user);
@@ -258,6 +286,7 @@ module my_addrx::Vault {
         event::emit(Deposit { by: *account, amount: amount });
     }
 
+    /// Withdraw funds from contract
     public entry fun withdraw_amount(user: &signer, amount: u64) acquires System, VaultInfo {
         assert_is_initialized();
         let account = &signer::address_of(user);
@@ -267,6 +296,7 @@ module my_addrx::Vault {
         event::emit(Withdrawal { by: *account, amount: amount });
     }
 
+    /// transfer funds from vault to provided address
     public entry fun move_fund(admin: &signer, user: address, amount: u64) acquires System {
         assert_is_initialized();
         let admin_addrx = &signer::address_of(admin);
@@ -305,6 +335,7 @@ module my_addrx::Vault {
         );
     }
 
+    // Check if the address is whitelisted
     #[view]
     public fun is_whitelisted(user: address): bool acquires System, VaultInfo {
         assert_is_initialized();
@@ -313,6 +344,7 @@ module my_addrx::Vault {
         *simple_map::borrow(whitelisted, &user)
     }
 
+    /// check user total deposited amount
     #[view]
     public fun total_deposited_amount(user: address): u64 acquires System, VaultInfo {
         assert_is_initialized();
@@ -322,6 +354,7 @@ module my_addrx::Vault {
         *deposited_amount
     }
 
+    /// Get the vault address
     #[view]
     public fun vault_address(): address acquires System {
         assert_is_initialized();
