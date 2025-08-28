@@ -15,7 +15,7 @@
 - [ ] Resource Account Deployer
 - [X] Secondary Store (FA + Store)
 - [X] Nested Objects (NFT + Object)
-- [ ] Module Upgrade with State Preservation
+- [X] Module Upgrade with State Preservation
 - [X] Unit Tests
 
 ## 🌱 Beginner Level (Foundations)
