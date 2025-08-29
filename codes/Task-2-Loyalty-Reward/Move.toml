@@ -1,0 +1,16 @@
+[package]
+name = "Loyalty Reward Token System"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = '9888cc7d0136703b9af6214c3de38f2b8948720f96087fdf4b9c7e881f88af3b'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
