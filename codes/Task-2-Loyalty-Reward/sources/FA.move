@@ -3,6 +3,7 @@ module my_addrx::FA {
     use std::string;
     use std::vector;
     use std::option;
+    use std::event;
     use std::simple_map::{Self, SimpleMap};
     use aptos_framework::timestamp;
     use aptos_framework::object::{Self, Object, DeleteRef, TransferRef as Trf};
@@ -49,6 +50,25 @@ module my_addrx::FA {
     struct TokenStore has key {
         token_object: SimpleMap<address, vector<address>>,
         vault_transfer_ref: Trf
+    }
+
+    #[event]
+    struct TokenMinted has drop, store {
+        to: address,
+        amount: u64
+    }
+
+    #[event]
+    struct TokenClaimed has drop, store {
+        from: address,
+        amount: u64
+    }
+
+    #[event]
+    struct TokenTransfered has drop, store {
+        from: address,
+        to: address,
+        amount: u64
     }
 
     /// Checks if the signer is the owner
@@ -130,6 +150,8 @@ module my_addrx::FA {
         let obj = object::object_from_constructor_ref<TokenObject>(&constructor_ref);
         let fa = fungible_asset::mint(&sys.mint_ref, amount);
         fungible_asset::deposit(obj, fa);
+
+        event::emit(TokenMinted { to: user, amount });
     }
 
     /// Spends tokens
@@ -155,6 +177,7 @@ module my_addrx::FA {
         let counter = 0;
         let claimble = amount;
         let len = user_amount_objs.length();
+        let total_amount = 0;
 
         while (counter < len && claimble > 0) {
             let object_address = user_amount_objs.borrow_mut(counter);
@@ -179,10 +202,13 @@ module my_addrx::FA {
                     user_amount_objs.remove(counter);
                 };
 
+                total_amount += send_amount;
                 claimble -= send_amount;
             };
             counter += 1;
         };
+
+        event::emit(TokenClaimed { from: user, amount: total_amount });
     }
 
     /// Transfers tokens
@@ -207,6 +233,7 @@ module my_addrx::FA {
 
         let len = user_amount_objs.length();
         let store_addr = vector::empty();
+        let total_amount = 0;
 
         while (counter < len && claimble > 0) {
             let object_address = user_amount_objs.borrow_mut(counter);
@@ -228,6 +255,7 @@ module my_addrx::FA {
 
                 store_addr.push_back(addr);
 
+                total_amount += send_amount;
                 claimble -= send_amount;
             };
             counter += 1;
@@ -236,6 +264,10 @@ module my_addrx::FA {
         store_addr.for_each(|addr| {
             store.token_object.borrow_mut(&@my_addrx).push_back(addr);
         });
+
+        event::emit(
+            TokenTransfered { from: user_from, to: @my_addrx, amount: total_amount }
+        );
     }
 
     /// Destroys the object
