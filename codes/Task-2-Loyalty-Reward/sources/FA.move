@@ -160,7 +160,7 @@ module my_addrx::FA {
             let object_address = user_amount_objs.borrow_mut(counter);
             let obj = object::address_to_object(*object_address);
 
-            if (check_object_expiery(object_address)) {
+            if (check_object_expiery(*object_address)) {
                 destroy_obj(obj, object_address);
                 user_amount_objs.remove(counter);
             } else {
@@ -185,6 +185,59 @@ module my_addrx::FA {
         };
     }
 
+    /// Transfers tokens
+    /// Transfer tokens from one user to admin
+    /// it will just deref from user to admin
+    /// in this it is transfering entire address, so if one obj has balance 100 and admin wants to transfer 10 coin
+    /// it will transfer all 100
+    fun transfer(user_from: address, amount: u64) acquires System, TokenStore, TokenObject {
+        let sys = borrow_global<System>(@my_addrx);
+
+        let store = borrow_global_mut<TokenStore>(sys.vault_addr);
+
+        assert!(store.token_object.contains_key(&user_from), EUSER_NOT_FOUND);
+
+        if (!store.token_object.contains_key(&@my_addrx)) {
+            store.token_object.add(@my_addrx, vector::empty());
+        };
+
+        let counter = 0;
+        let claimble = amount;
+        let user_amount_objs = store.token_object.borrow_mut(&user_from);
+
+        let len = user_amount_objs.length();
+        let store_addr = vector::empty();
+
+        while (counter < len && claimble > 0) {
+            let object_address = user_amount_objs.borrow_mut(counter);
+            let obj = object::address_to_object(*object_address);
+
+            if (check_object_expiery(*object_address)) {
+                destroy_obj(obj, object_address);
+                user_amount_objs.remove(counter);
+            } else {
+                let balance = fungible_asset::balance(obj);
+
+                let send_amount = if (claimble >= balance) {
+                    balance
+                } else {
+                    claimble
+                };
+
+                let addr = user_amount_objs.remove(counter);
+
+                store_addr.push_back(addr);
+
+                claimble -= send_amount;
+            };
+            counter += 1;
+        };
+
+        store_addr.for_each(|addr| {
+            store.token_object.borrow_mut(&@my_addrx).push_back(addr);
+        });
+    }
+
     /// Destroys the object
     /// Burn all the balance which object has and delete the object
     fun destroy_obj(obj: Object<TokenObject>, obj_addr: &address) acquires System, TokenObject {
@@ -199,8 +252,8 @@ module my_addrx::FA {
 
     /// Checks if the token is expired
     #[view]
-    fun check_object_expiery(obj_addr: &address): bool acquires TokenObject {
-        let token_obj = borrow_global<TokenObject>(*obj_addr);
+    fun check_object_expiery(obj_addr: address): bool acquires TokenObject {
+        let token_obj = borrow_global<TokenObject>(obj_addr);
         if (token_obj.expiry > timestamp::now_seconds()) { false }
         else { true }
     }
@@ -231,6 +284,15 @@ module my_addrx::FA {
         assert_is_owner(signer::address_of(admin));
         assert!(amount > 0, EINVALID_AMOUNT);
         claim(from, amount);
+    }
+
+    /// transfer the tokens from user, which is minted from him
+    public entry fun transfer_from_user(
+        admin: &signer, from: address, amount: u64
+    ) acquires System, TokenStore, TokenObject {
+        assert_is_owner(signer::address_of(admin));
+        assert!(amount > 0, EINVALID_AMOUNT);
+        transfer(from, amount);
     }
 
     #[view]
@@ -313,6 +375,34 @@ module my_addrx::FA {
         burn_from_user(admin, alice_addrx, 100);
         alice_balance = balance_of(alice_addrx);
         assert!(alice_balance == 0, 2);
+    }
+
+    #[test(aptos_framework = @aptos_framework, admin = @my_addrx)]
+    public fun transfer_amount(
+        aptos_framework: &signer, admin: &signer
+    ) acquires System, TokenStore, TokenObject {
+        init_module(admin);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
+        let alice = aptos_framework::account::create_account_for_test(@0x2);
+        let alice_addrx = signer::address_of(&alice);
+
+        mint_to(
+            admin,
+            alice_addrx,
+            100,
+            timestamp::now_seconds() + 100
+        );
+        let alice_balance = balance_of(alice_addrx);
+        assert!(alice_balance == 100, 1);
+
+        transfer_from_user(admin, alice_addrx, 10);
+        alice_balance = balance_of(alice_addrx);
+        assert!(alice_balance == 0, 2);
+
+        let admin_balance = balance_of(signer::address_of(admin));
+
+        assert!(admin_balance == 100, 3);
     }
 }
 
