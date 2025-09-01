@@ -331,18 +331,18 @@ module my_addrx::FA {
     public fun balance_of(account: address): u64 acquires System, TokenStore {
         let sys = borrow_global<System>(@my_addrx);
 
-        let store = borrow_global_mut<TokenStore>(sys.vault_addr);
+        let store = borrow_global<TokenStore>(sys.vault_addr);
 
         assert!(store.token_object.contains_key(&account), EUSER_NOT_FOUND);
 
-        let user_amount_objs = store.token_object.borrow_mut(&account);
+        let user_amount_objs = store.token_object.borrow(&account);
 
         let counter = 0;
         let len = user_amount_objs.length();
         let total = 0;
 
         while (counter < len) {
-            let object_address = user_amount_objs.borrow_mut(counter);
+            let object_address = user_amount_objs.borrow(counter);
             let obj = object::address_to_object<TokenObject>(*object_address);
 
             let bal = fungible_asset::balance(obj);
@@ -383,6 +383,26 @@ module my_addrx::FA {
         claim_amount(&alice, 10);
         alice_balance = balance_of(alice_addrx);
         assert!(alice_balance == 0, 3);
+    }
+
+    #[test(aptos_framework = @aptos_framework, admin = @my_addrx)]
+    public fun test_mint(
+        aptos_framework: &signer, admin: &signer
+    ) acquires System, TokenStore {
+        init_module(admin);
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+
+        let alice = aptos_framework::account::create_account_for_test(@0x2);
+        let alice_addrx = signer::address_of(&alice);
+
+        mint_to(
+            admin,
+            alice_addrx,
+            100,
+            timestamp::now_seconds() + 100
+        );
+        let alice_balance = balance_of(alice_addrx);
+        assert!(alice_balance == 100, 1);
     }
 
     #[test(aptos_framework = @aptos_framework, admin = @my_addrx)]
