@@ -1,0 +1,9 @@
+- https://move-book.com
+- https://github.com/move-language/move/tree/main/language
+- https://github.com/MystenLabs/awesome-move
+- https://cookbook.starcoin.org/
+- https://www.move-patterns.com/
+- https://github.com/move-language/move/tree/main/language/documentation/tutorial
+- https://brson.github.io/2022/09/21/move-impressions
+- [Error Codes](https://github.com/move-language/move/blob/main/language/move-stdlib/docs/error.md)
+- [Move Prover](https://osec.io/blog/2022-09-16-move-prover)
