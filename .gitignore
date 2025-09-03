@@ -1,3 +1,6 @@
 .aptos/
 build/
 spam.move
+demo
+*logs*
+*history
