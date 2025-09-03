@@ -1,0 +1,16 @@
+[package]
+name = "Task 2"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = 'efdf0a8ed5e65f3de2f9fd9b0b1ccfc568625e41c5b6b96b68091d3f75473157'
+
+[dev-addresses]
+
+[dependencies.SupraFramework]
+git = "https://github.com/Entropy-Foundation/aptos-core.git"
+rev = "dev"
+subdir = "aptos-move/framework/supra-framework"
+
+[dev-dependencies]
