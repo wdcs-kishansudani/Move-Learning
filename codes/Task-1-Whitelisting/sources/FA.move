@@ -13,7 +13,9 @@ module my_addrx::FA {
         FungibleStore
     };
 
-    const ALREADY_INITIALIED: u64 = 0;
+    const EINVALID_AMOUNT: u64 = 1;
+    const ENOT_OWNER: u64 = 2;
+    const EALREADY_INITIALIED: u64 = 3;
 
     const SEED: vector<u8> = b"THIS IS EPIC SEED!!";
 
@@ -27,7 +29,7 @@ module my_addrx::FA {
     public entry fun create(admin: &signer) {
         let admin_addr = signer::address_of(admin);
 
-        assert!(!exists<System>(admin_addr), ALREADY_INITIALIED);
+        assert!(!exists<System>(admin_addr), EALREADY_INITIALIED);
 
         let constructor_ref = &object::create_named_object(admin, SEED);
 
@@ -54,9 +56,9 @@ module my_addrx::FA {
 
     public entry fun mint(admin: &signer, user: address, amount: u64) acquires System {
         let addrx = signer::address_of(admin);
-        assert!(amount > 0);
+        assert!(amount > 0, EINVALID_AMOUNT);
 
-        assert!(addrx == @my_addrx);
+        assert!(addrx == @my_addrx, ENOT_OWNER);
 
         let system = borrow_global<System>(@my_addrx);
 
@@ -76,13 +78,13 @@ module my_addrx::FA {
 
     #[view]
     public fun get_metadata(): Object<Metadata> acquires System {
-        assert!(exists<System>(@my_addrx), ALREADY_INITIALIED);
+        assert!(exists<System>(@my_addrx), EALREADY_INITIALIED);
         borrow_global<System>(@my_addrx).metadata
     }
 
     #[view]
     public fun get_primary_store_address(account: address): address acquires System {
-        assert!(exists<System>(@my_addrx), ALREADY_INITIALIED);
+        assert!(exists<System>(@my_addrx), EALREADY_INITIALIED);
         primary_fungible_store::primary_store_address(
             account, borrow_global<System>(@my_addrx).metadata
         )
