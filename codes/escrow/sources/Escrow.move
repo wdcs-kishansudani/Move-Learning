@@ -19,6 +19,9 @@ module my_addrx::Escrow {
     const EINVALID_RELEASE_ADDRESS: u64 = 11;
     const EINVALID_DISPUTE: u64 = 12;
     const EESCROW_IN_DISPUTE: u64 = 13;
+    const ENOT_ENOUGH_TIME_PASSED: u64 = 14;
+
+    const ESCROW_TIMEOUT: u64 = 86400; // 1 Day
 
     struct Escrow has key {
         buyer: address,
@@ -26,6 +29,7 @@ module my_addrx::Escrow {
         token: Object<FungibleStore>,
         arbitrator: address,
         amount: u64,
+        created_at: u64,
         state: u8 // 0=pending, 1=released, 2=canceled, 3=disputed, 4=resolved
     }
 
@@ -68,7 +72,15 @@ module my_addrx::Escrow {
         let constructor_ref = &object::create_object(buyer);
         let fs = fungible_asset::create_store(constructor_ref, metadata);
 
-        let escrow = Escrow { buyer, seller, token: fs, arbitrator, amount, state: 0 };
+        let escrow = Escrow {
+            buyer,
+            seller,
+            token: fs,
+            arbitrator,
+            amount,
+            created_at: timestamp::now_seconds(),
+            state: 0
+        };
 
         let vault = borrow_global_mut<Vault>(@my_addrx);
 
@@ -200,6 +212,11 @@ module my_addrx::Escrow {
 
         let escrow = borrow_global_mut<Escrow>(*vault.vault.borrow(escrow_id));
 
+        assert!(
+            escrow.created_at + ESCROW_TIMEOUT < timestamp::now_seconds(),
+            ENOT_ENOUGH_TIME_PASSED
+        );
+
         if (escrow.state != 0 && escrow.state == 3) {
             assert!(false, EESCROW_IN_DISPUTE);
         };
@@ -221,7 +238,7 @@ module my_addrx::Escrow {
         );
 
         let vault = borrow_global<Vault>(@my_addrx);
-        let escrow = borrow_global<Escrow>(*vault.vault.borrow(escrow_id));
+        let escrow = borrow_global_mut<Escrow>(*vault.vault.borrow(escrow_id));
 
         assert!(escrow.state == 3, EINVALID_DISPUTE);
 
@@ -235,12 +252,18 @@ module my_addrx::Escrow {
             EINVALID_RELEASE_ADDRESS
         );
 
-        if (to == escrow.buyer) {
-            cancel(escrow_id, 4);
-        } else {
-            release(escrow_id, 4);
+        let metadata = FA::get_metadata();
+
+        if (!primary_fungible_store::primary_store_exists(to, metadata)) {
+            primary_fungible_store::create_primary_store(to, metadata);
         };
 
+        let primary_store_address =
+            primary_fungible_store::primary_store_address(to, metadata);
+        let store_obj = object::address_to_object<FungibleStore>(primary_store_address);
+
+        escrow.state = 4;
+        FA::transfer(escrow.token, store_obj, escrow.amount);
     }
 
     #[view]
@@ -261,14 +284,16 @@ module my_addrx::Escrow {
     }
 
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
 
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
@@ -308,14 +333,16 @@ module my_addrx::Escrow {
     }
 
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_cancel(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -355,14 +382,16 @@ module my_addrx::Escrow {
     }
 
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_dispute(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -383,6 +412,7 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 50, 3);
 
+        timestamp::fast_forward_seconds(86500);
         dispute_escrow(alice, 0);
 
         let (_, _, _, _, state) = check_escrow(0);
@@ -402,14 +432,16 @@ module my_addrx::Escrow {
 
     #[expected_failure(abort_code = EALREADY_RELEASED)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_double_release(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -433,14 +465,16 @@ module my_addrx::Escrow {
 
     #[expected_failure(abort_code = EINSUFFICIENT_AMOUNT)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_insufficient_amount(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -458,14 +492,16 @@ module my_addrx::Escrow {
 
     #[expected_failure(abort_code = EONLY_BUYER)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun non_buyer_release_fails(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -488,14 +524,16 @@ module my_addrx::Escrow {
 
     #[expected_failure(abort_code = EID_NOT_FOUND)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun release_nonexistent_id(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -517,10 +555,16 @@ module my_addrx::Escrow {
     }
 
     #[expected_failure(abort_code = EINVALID_ADDRESS)]
-    #[test(admin = @my_addrx, alice = @0x1, charlie = @0x3)]
+    #[test(
+        framework = @0x1, admin = @my_addrx, alice = @0x1, charlie = @0x3
+    )]
     fun create_escrow_with_same_buyer_seller(
-        admin: &signer, alice: &signer, charlie: &signer
+        framework: &signer,
+        admin: &signer,
+        alice: &signer,
+        charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let charlie_addrx = signer::address_of(charlie);
 
@@ -539,14 +583,16 @@ module my_addrx::Escrow {
 
     #[expected_failure(abort_code = EONLY_ARBITRATOR)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_not_aribitrator(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -564,6 +610,7 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
+        timestamp::fast_forward_seconds(86500);
         dispute_escrow(alice, 0);
 
         resolve_dispute(alice, alice_addrx, 0);
@@ -572,14 +619,16 @@ module my_addrx::Escrow {
 
     #[expected_failure(abort_code = EINVALID_DISPUTOR)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_invalid_disputor(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -597,20 +646,23 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
+        timestamp::fast_forward_seconds(86500);
         dispute_escrow(charlie, 0);
 
     }
 
     #[expected_failure(abort_code = EINVALID_RELEASE_ADDRESS)]
     #[test(
-        admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
     )]
     fun test_invalid_release_address(
+        framework: &signer,
         admin: &signer,
         alice: &signer,
         bob: &signer,
         charlie: &signer
     ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
         let charlie_addrx = signer::address_of(charlie);
@@ -627,9 +679,42 @@ module my_addrx::Escrow {
         create_escrow(alice, bob_addrx, charlie_addrx, 50);
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
-
+        timestamp::fast_forward_seconds(86500);
         dispute_escrow(alice, 0);
         resolve_dispute(charlie, charlie_addrx, 0);
+
+    }
+
+    #[expected_failure(abort_code = ENOT_ENOUGH_TIME_PASSED)]
+    #[test(
+        framework = @0x1, admin = @my_addrx, alice = @0x1, bob = @0x2, charlie = @0x3
+    )]
+    fun test_not_enough_time_passed_for_dispute(
+        framework: &signer,
+        admin: &signer,
+        alice: &signer,
+        bob: &signer,
+        charlie: &signer
+    ) acquires Vault, Escrow {
+        timestamp::set_time_has_started_for_testing(framework);
+        let alice_addrx = signer::address_of(alice);
+        let bob_addrx = signer::address_of(bob);
+        let charlie_addrx = signer::address_of(charlie);
+
+        FA::test_init(admin);
+        init_module(admin);
+
+        FA::register(alice);
+
+        FA::mint(admin, alice_addrx, 100);
+
+        assert!(FA::check_balance(alice_addrx) == 100, 1);
+
+        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+
+        assert!(FA::check_balance(alice_addrx) == 50, 2);
+        timestamp::fast_forward_seconds(86300);
+        dispute_escrow(alice, 0);
 
     }
 }
