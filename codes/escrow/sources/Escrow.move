@@ -1,6 +1,6 @@
 module my_addrx::Escrow {
     use std::signer;
-    use std::object::{Self, Object};
+    use std::object::{Self, Object, ExtendRef};
     use std::timestamp;
     use aptos_framework::fungible_asset::{Self, Metadata, FungibleStore};
     use aptos_framework::primary_fungible_store;
@@ -30,7 +30,8 @@ module my_addrx::Escrow {
         arbitrator: address,
         amount: u64,
         created_at: u64,
-        state: u8 // 0=pending, 1=released, 2=canceled, 3=disputed, 4=resolved
+        state: u8, // 0=pending, 1=released, 2=canceled, 3=disputed, 4=resolved
+        extended_ref: ExtendRef
     }
 
     struct Vault has key {
@@ -54,32 +55,30 @@ module my_addrx::Escrow {
     }
 
     fun create(
-        buyer: address,
+        buyer: &signer,
         seller: address,
         arbitrator: address,
         amount: u64,
         metadata: Object<Metadata>
     ) acquires Vault, Escrow {
+        let buyer_addrx = signer::address_of(buyer);
         assert!(
-            primary_fungible_store::primary_store_exists(buyer, metadata),
+            primary_fungible_store::primary_store_exists(buyer_addrx, metadata),
             EPRIMARY_STORE_NOT_EXIST
         );
 
-        let buyer_store_address =
-            primary_fungible_store::primary_store_address(buyer, metadata);
-        let buyer_store = object::address_to_object<FungibleStore>(buyer_store_address);
-
-        let constructor_ref = &object::create_object(buyer);
+        let constructor_ref = &object::create_object(buyer_addrx);
         let fs = fungible_asset::create_store(constructor_ref, metadata);
 
         let escrow = Escrow {
-            buyer,
+            buyer: buyer_addrx,
             seller,
             token: fs,
             arbitrator,
             amount,
             created_at: timestamp::now_seconds(),
-            state: 0
+            state: 0,
+            extended_ref: object::generate_extend_ref(constructor_ref)
         };
 
         let vault = borrow_global_mut<Vault>(@my_addrx);
@@ -89,16 +88,21 @@ module my_addrx::Escrow {
 
         let next_escrow_id = vault.next_escrow_id;
         vault.vault.add(next_escrow_id, signer::address_of(object_signer));
-        vault.vault_owner.add(next_escrow_id, buyer);
+        vault.vault_owner.add(next_escrow_id, buyer_addrx);
 
         vault.next_escrow_id += 1;
 
         let es = borrow_global<Escrow>(signer::address_of(object_signer));
 
-        FA::transfer(buyer_store, es.token, es.amount);
+        primary_fungible_store::transfer(
+            buyer,
+            metadata,
+            signer::address_of(object_signer),
+            es.amount
+        );
     }
 
-    fun release(escrow_id: u64, stats: u8) acquires Vault, Escrow {
+    fun release(escrow_id: u64, metadata: Object<Metadata>) acquires Vault, Escrow {
         let vault = borrow_global_mut<Vault>(@my_addrx);
 
         let buyer_signer_address = *vault.vault.borrow(escrow_id);
@@ -106,23 +110,22 @@ module my_addrx::Escrow {
         let escrow = borrow_global_mut<Escrow>(buyer_signer_address);
 
         assert!(escrow.state == 0, EALREADY_RELEASED);
-
-        let metadata = FA::get_metadata();
 
         if (!primary_fungible_store::primary_store_exists(escrow.seller, metadata)) {
             primary_fungible_store::create_primary_store(escrow.seller, metadata);
         };
 
-        let seller_store_address =
-            primary_fungible_store::primary_store_address(escrow.seller, metadata);
-        let seller_store = object::address_to_object<FungibleStore>(seller_store_address);
+        escrow.state = 1;
 
-        escrow.state = stats;
-
-        FA::transfer(escrow.token, seller_store, escrow.amount);
+        primary_fungible_store::transfer(
+            &object::generate_signer_for_extending(&escrow.extended_ref),
+            metadata,
+            escrow.seller,
+            escrow.amount
+        );
     }
 
-    fun cancel(escrow_id: u64, stats: u8) acquires Vault, Escrow {
+    fun cancel(escrow_id: u64, metadata: Object<Metadata>) acquires Vault, Escrow {
         let vault = borrow_global_mut<Vault>(@my_addrx);
 
         let buyer_signer_address = *vault.vault.borrow(escrow_id);
@@ -131,45 +134,40 @@ module my_addrx::Escrow {
 
         assert!(escrow.state == 0, EALREADY_RELEASED);
 
-        let metadata = FA::get_metadata();
+        escrow.state = 2;
 
-        let buyer_primary_store_address =
-            primary_fungible_store::primary_store_address(escrow.buyer, metadata);
-        let buyer_store =
-            object::address_to_object<FungibleStore>(buyer_primary_store_address);
+        primary_fungible_store::transfer(
+            &object::generate_signer_for_extending(&escrow.extended_ref),
+            metadata,
+            escrow.buyer,
+            escrow.amount
+        );
 
-        escrow.state = stats;
-
-        FA::transfer(escrow.token, buyer_store, escrow.amount);
     }
 
     entry fun create_escrow(
         buyer: &signer,
         seller: address,
         arbitrator: address,
+        metadata: Object<Metadata>,
         amount: u64
     ) acquires Vault, Escrow {
         let buyer_addr = signer::address_of(buyer);
         assert!(buyer_addr != seller, EINVALID_ADDRESS);
         assert!(buyer_addr != arbitrator, EINVALID_ADDRESS);
         assert!(amount > 0, EINVALID_AMOUNT);
-        let metadata = FA::get_metadata();
 
         assert!(
             primary_fungible_store::balance(buyer_addr, metadata) >= amount,
             EINSUFFICIENT_AMOUNT
         );
 
-        create(
-            buyer_addr,
-            seller,
-            arbitrator,
-            amount,
-            metadata
-        );
+        create(buyer, seller, arbitrator, amount, metadata);
     }
 
-    entry fun release_escrow(buyer: &signer, escrow_id: u64) acquires Vault, Escrow {
+    entry fun release_escrow(
+        buyer: &signer, metadata: Object<Metadata>, escrow_id: u64
+    ) acquires Vault, Escrow {
         let buyer_addr = signer::address_of(buyer);
         let vault = borrow_global<Vault>(@my_addrx);
         assert!(vault.next_escrow_id > escrow_id, EID_NOT_FOUND);
@@ -184,10 +182,12 @@ module my_addrx::Escrow {
             EONLY_BUYER
         );
 
-        release(escrow_id, 1);
+        release(escrow_id, metadata);
     }
 
-    entry fun cancel_escrow(buyer: &signer, escrow_id: u64) acquires Vault, Escrow {
+    entry fun cancel_escrow(
+        buyer: &signer, metadata: Object<Metadata>, escrow_id: u64
+    ) acquires Vault, Escrow {
         let buyer_addr = signer::address_of(buyer);
         let vault = borrow_global<Vault>(@my_addrx);
         assert!(vault.next_escrow_id > escrow_id, EID_NOT_FOUND);
@@ -202,7 +202,7 @@ module my_addrx::Escrow {
             EONLY_BUYER
         );
 
-        cancel(escrow_id, 2);
+        cancel(escrow_id, metadata);
     }
 
     entry fun dispute_escrow(account: &signer, escrow_id: u64) acquires Vault, Escrow {
@@ -230,7 +230,10 @@ module my_addrx::Escrow {
     }
 
     entry fun resolve_dispute(
-        arbitrator: &signer, to: address, escrow_id: u64
+        arbitrator: &signer,
+        to: address,
+        metadata: Object<Metadata>,
+        escrow_id: u64
     ) acquires Vault, Escrow {
         let arbitrator_addrx = signer::address_of(arbitrator);
         assert!(
@@ -252,18 +255,13 @@ module my_addrx::Escrow {
             EINVALID_RELEASE_ADDRESS
         );
 
-        let metadata = FA::get_metadata();
-
-        if (!primary_fungible_store::primary_store_exists(to, metadata)) {
-            primary_fungible_store::create_primary_store(to, metadata);
-        };
-
-        let primary_store_address =
-            primary_fungible_store::primary_store_address(to, metadata);
-        let store_obj = object::address_to_object<FungibleStore>(primary_store_address);
-
         escrow.state = 4;
-        FA::transfer(escrow.token, store_obj, escrow.amount);
+        primary_fungible_store::transfer(
+            &object::generate_signer_for_extending(&escrow.extended_ref),
+            metadata,
+            to,
+            escrow.amount
+        );
     }
 
     #[view]
@@ -311,7 +309,13 @@ module my_addrx::Escrow {
         assert!(FA::check_balance(alice_addrx) == 100, 1);
         assert!(FA::check_balance(bob_addrx) == 100, 2);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 3);
         assert!(FA::check_balance(bob_addrx) == 100, 4);
@@ -323,7 +327,7 @@ module my_addrx::Escrow {
         assert!(amount == 50, 8);
         assert!(stats == 0, 9);
 
-        release_escrow(alice, 0);
+        release_escrow(alice, FA::get_metadata(), 0);
 
         assert!(FA::check_balance(alice_addrx) == 50, 10);
         assert!(FA::check_balance(bob_addrx) == 150, 11);
@@ -359,7 +363,13 @@ module my_addrx::Escrow {
         assert!(FA::check_balance(alice_addrx) == 100, 1);
         assert!(FA::check_balance(bob_addrx) == 100, 2);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 3);
         assert!(FA::check_balance(bob_addrx) == 100, 4);
@@ -371,7 +381,7 @@ module my_addrx::Escrow {
         assert!(amount == 50, 8);
         assert!(stats == 0, 9);
 
-        cancel_escrow(alice, 0);
+        cancel_escrow(alice, FA::get_metadata(), 0);
 
         assert!(FA::check_balance(alice_addrx) == 100, 10);
         assert!(FA::check_balance(bob_addrx) == 100, 11);
@@ -408,7 +418,13 @@ module my_addrx::Escrow {
         assert!(FA::check_balance(alice_addrx) == 100, 1);
         assert!(FA::check_balance(bob_addrx) == 100, 2);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 3);
 
@@ -422,7 +438,7 @@ module my_addrx::Escrow {
         assert!(FA::check_balance(alice_addrx) == 50, 5);
         assert!(FA::check_balance(bob_addrx) == 100, 6);
 
-        resolve_dispute(charlie, alice_addrx, 0);
+        resolve_dispute(charlie, alice_addrx, FA::get_metadata(), 0);
         let (_, _, _, _, state) = check_escrow(0);
         assert!(state == 4, 7);
         assert!(FA::check_balance(alice_addrx) == 100, 8);
@@ -455,12 +471,18 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
-        release_escrow(alice, 0);
-        release_escrow(alice, 0);
+        release_escrow(alice, FA::get_metadata(), 0);
+        release_escrow(alice, FA::get_metadata(), 0);
     }
 
     #[expected_failure(abort_code = EINSUFFICIENT_AMOUNT)]
@@ -486,7 +508,13 @@ module my_addrx::Escrow {
 
         FA::mint(admin, alice_addrx, 100);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 150);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            150
+        );
 
     }
 
@@ -515,11 +543,17 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
-        release_escrow(bob, 0);
+        release_escrow(bob, FA::get_metadata(), 0);
     }
 
     #[expected_failure(abort_code = EID_NOT_FOUND)]
@@ -547,11 +581,17 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
-        release_escrow(bob, 1);
+        release_escrow(bob, FA::get_metadata(), 1);
     }
 
     #[expected_failure(abort_code = EINVALID_ADDRESS)]
@@ -577,7 +617,13 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, alice_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            alice_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
     }
 
@@ -606,14 +652,20 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
         timestamp::fast_forward_seconds(86500);
         dispute_escrow(alice, 0);
 
-        resolve_dispute(alice, alice_addrx, 0);
+        resolve_dispute(alice, alice_addrx, FA::get_metadata(), 0);
 
     }
 
@@ -642,7 +694,13 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
 
@@ -676,12 +734,18 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
         timestamp::fast_forward_seconds(86500);
         dispute_escrow(alice, 0);
-        resolve_dispute(charlie, charlie_addrx, 0);
+        resolve_dispute(charlie, charlie_addrx, FA::get_metadata(), 0);
 
     }
 
@@ -710,7 +774,13 @@ module my_addrx::Escrow {
 
         assert!(FA::check_balance(alice_addrx) == 100, 1);
 
-        create_escrow(alice, bob_addrx, charlie_addrx, 50);
+        create_escrow(
+            alice,
+            bob_addrx,
+            charlie_addrx,
+            FA::get_metadata(),
+            50
+        );
 
         assert!(FA::check_balance(alice_addrx) == 50, 2);
         timestamp::fast_forward_seconds(86300);

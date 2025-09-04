@@ -109,15 +109,6 @@ module my_addrx::FA {
         primary_fungible_store::burn(&system.burn_ref, user, amount);
     }
 
-    public(friend) entry fun transfer(
-        from: Object<FungibleStore>, to: Object<FungibleStore>, amount: u64
-    ) acquires System {
-        assert!(amount > 0, EINVALID_AMOUNT);
-        let system = borrow_global<System>(@my_addrx);
-
-        fungible_asset::transfer_with_ref(&system.transfer_ref, from, to, amount);
-    }
-
     #[view]
     public fun check_balance(addr: address): u64 acquires System {
         let system = borrow_global<System>(@my_addrx);
