@@ -1,0 +1,16 @@
+[package]
+name = "escrow"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = 'd2a0aa6eb210135dd4902ef459b2e206bca8e9ed908bc50fbd8955f6566f6a34'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
