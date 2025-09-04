@@ -2,7 +2,7 @@ module my_addrx::Escrow {
     use std::signer;
     use std::object::{Self, Object, ExtendRef};
     use std::timestamp;
-    use aptos_framework::fungible_asset::{Self, Metadata, FungibleStore};
+    use aptos_framework::fungible_asset::Metadata;
     use aptos_framework::primary_fungible_store;
     use aptos_framework::smart_table::{Self, SmartTable};
     use my_addrx::FA;
@@ -26,7 +26,6 @@ module my_addrx::Escrow {
     struct Escrow has key {
         buyer: address,
         seller: address,
-        token: Object<FungibleStore>,
         arbitrator: address,
         amount: u64,
         created_at: u64,
@@ -68,12 +67,10 @@ module my_addrx::Escrow {
         );
 
         let constructor_ref = &object::create_object(buyer_addrx);
-        let fs = fungible_asset::create_store(constructor_ref, metadata);
 
         let escrow = Escrow {
             buyer: buyer_addrx,
             seller,
-            token: fs,
             arbitrator,
             amount,
             created_at: timestamp::now_seconds(),
