@@ -6,11 +6,7 @@ module my_addrx::Bank {
     use aptos_framework::fungible_asset::{Self, Metadata, BurnRef, MintRef, TransferRef};
     use aptos_framework::primary_fungible_store;
 
-    struct USD {}
-
-    struct EUR {}
-
-    struct INR {}
+    const EALREADY_INITIALIZED: u64 = 1;
 
     struct Currency<phantom CurrencyType> has key {
         mint_ref: MintRef,
@@ -19,65 +15,32 @@ module my_addrx::Bank {
         metadata: Object<Metadata>
     }
 
-    fun init_module(admin: &signer) {
+    fun deploy<T>(admin: &signer, seed: vector<u8>) {
+        assert!(
+            !exists<Currency<T>>(signer::address_of(admin)),
+            EALREADY_INITIALIZED
+        );
 
-        let constructor_ref = &object::create_named_object(admin, b"USD");
+        let constructor_ref = &object::create_named_object(admin, seed);
         primary_fungible_store::create_primary_store_enabled_fungible_asset(
             constructor_ref,
             option::none(),
-            string::utf8(b"USD"),
-            string::utf8(b"USD"),
+            string::utf8(b"T"),
+            string::utf8(b"T"),
             8,
             string::utf8(b""),
             string::utf8(b"")
         );
 
-        let usd = Currency<USD> {
-            mint_ref: fungible_asset::generate_mint_ref(constructor_ref),
-            burn_ref: fungible_asset::generate_burn_ref(constructor_ref),
-            transfer_ref: fungible_asset::generate_transfer_ref(constructor_ref),
-            metadata: object::object_from_constructor_ref(constructor_ref)
-        };
-
-        let constructor_ref = &object::create_named_object(admin, b"EUR");
-        primary_fungible_store::create_primary_store_enabled_fungible_asset(
-            constructor_ref,
-            option::none(),
-            string::utf8(b"EUR"),
-            string::utf8(b"EUR"),
-            8,
-            string::utf8(b""),
-            string::utf8(b"")
+        move_to(
+            admin,
+            Currency<T> {
+                mint_ref: fungible_asset::generate_mint_ref(constructor_ref),
+                burn_ref: fungible_asset::generate_burn_ref(constructor_ref),
+                transfer_ref: fungible_asset::generate_transfer_ref(constructor_ref),
+                metadata: object::object_from_constructor_ref(constructor_ref)
+            }
         );
-
-        let eur = Currency<EUR> {
-            mint_ref: fungible_asset::generate_mint_ref(constructor_ref),
-            burn_ref: fungible_asset::generate_burn_ref(constructor_ref),
-            transfer_ref: fungible_asset::generate_transfer_ref(constructor_ref),
-            metadata: object::object_from_constructor_ref(constructor_ref)
-        };
-
-        let constructor_ref = &object::create_named_object(admin, b"INR");
-        primary_fungible_store::create_primary_store_enabled_fungible_asset(
-            constructor_ref,
-            option::none(),
-            string::utf8(b"INR"),
-            string::utf8(b"INR"),
-            8,
-            string::utf8(b""),
-            string::utf8(b"")
-        );
-
-        let inr = Currency<INR> {
-            mint_ref: fungible_asset::generate_mint_ref(constructor_ref),
-            burn_ref: fungible_asset::generate_burn_ref(constructor_ref),
-            transfer_ref: fungible_asset::generate_transfer_ref(constructor_ref),
-            metadata: object::object_from_constructor_ref(constructor_ref)
-        };
-
-        move_to(admin, usd);
-        move_to(admin, eur);
-        move_to(admin, inr);
     }
 
     fun mint<T>(admin: &signer, to: address, amount: u64) acquires Currency {
@@ -120,12 +83,24 @@ module my_addrx::Bank {
         fungible_asset::supply(currency.metadata)
     }
 
+    #[test_only]
+    #[resource_group_member(group = aptos_framework::object::ObjectGroup)]
+    struct USD has key {}
+
+    #[resource_group_member(group = aptos_framework::object::ObjectGroup)]
+    struct EUR has key {}
+
+    #[resource_group_member(group = aptos_framework::object::ObjectGroup)]
+    struct INR has key {}
+
     #[test(admin = @my_addrx, alice = @0x1, bob = @0x2)]
     fun test_flow(admin: &signer, alice: &signer, bob: &signer) acquires Currency {
         let alice_addrx = signer::address_of(alice);
         let bob_addrx = signer::address_of(bob);
 
-        init_module(admin);
+        deploy<USD>(admin, b"USD");
+        deploy<EUR>(admin, b"EUR");
+        deploy<INR>(admin, b"INR");
 
         mint<USD>(admin, alice_addrx, 1000);
         mint<EUR>(admin, alice_addrx, 1000);
