@@ -1,0 +1,16 @@
+[package]
+name = "MTK"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = 'f99d498cc73b78ca2cb49eae74450fa0e0f38458f1dce4a9ea516a0ae3b21b71'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
