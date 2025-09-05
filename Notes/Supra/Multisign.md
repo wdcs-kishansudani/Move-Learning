@@ -198,6 +198,12 @@ supra move multisig execute-with-payload \
   --assume-yes
 ```
 
+### Check if module exists
+
+```bash
+supra move tool list --account-address $multisig_addr --query modules
+```
+
 What it does: One owner (here `accountA`) triggers execution of the publication payload once approvals are met. CLI output will show transaction hash and status.
 
 ### STEP 11 — Creating function transactions (example mint)
