@@ -108,16 +108,16 @@ module phantom_witness::registry {
         /// Initialize and register custom types
         public fun setup(creator: &signer) {
             // Only this module can create witness for MyCustomType
-            let witness1 = registry::create_witness<MyCustomType>();
-            let witness2 = registry::create_witness<AnotherType>();
+            let witness1 = create_witness<MyCustomType>();
+            let witness2 = create_witness<AnotherType>();
 
-            registry::register_type<MyCustomType>(
+            register_type<MyCustomType>(
                 creator,
                 string::utf8(b"MyCustomType"),
                 witness1
             );
 
-            registry::register_type<AnotherType>(
+            register_type<AnotherType>(
                 creator,
                 string::utf8(b"AnotherType"),
                 witness2
@@ -128,38 +128,38 @@ module phantom_witness::registry {
         public fun create_my_resource(
             account: &signer,
             data: u64
-        ): registry::SecureResource<MyCustomType> {
-            let witness = registry::create_witness<MyCustomType>();
-            registry::create_secure_resource(account, data, witness)
+        ): SecureResource<MyCustomType> {
+            let witness = create_witness<MyCustomType>();
+            create_secure_resource(account, data, witness)
         }
 
         /// Update with authorization
         public fun update_my_resource(
-            resource: &mut registry::SecureResource<MyCustomType>,
+            resource: &mut SecureResource<MyCustomType>,
             new_data: u64
         ) {
-            let witness = registry::create_witness<MyCustomType>();
-            registry::update_resource(resource, new_data, witness);
+            let witness = create_witness<MyCustomType>();
+            update_resource(resource, new_data, witness);
         }
 
         #[test(creator = @0x123, user = @0x456)]
         fun test_witness_pattern(creator: signer, user: signer) {
-            registry::init_registry(&creator);
+            init_registry(&creator);
             setup(&creator);
 
             // Create resource
             let resource = create_my_resource(&user, 42);
-            assert!(registry::get_resource_data(&resource) == 42, 1);
+            assert!(get_resource_data(&resource) == 42, 1);
 
             // Update resource
             update_my_resource(&mut resource, 100);
-            assert!(registry::get_resource_data(&resource) == 100, 2);
+            assert!(get_resource_data(&resource) == 100, 2);
 
             // Verify type registration
-            assert!(registry::is_type_registered(string::utf8(b"MyCustomType")), 3);
+            assert!(is_type_registered(string::utf8(b"MyCustomType")), 3);
 
             // Clean up
-            let registry::SecureResource { data: _, authorized_by: _ } = resource;
+            let SecureResource { data: _, authorized_by: _ } = resource;
         }
     }
 }
