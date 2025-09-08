@@ -1,0 +1,16 @@
+[package]
+name = "assets swap"
+version = "1.0.0"
+authors = []
+
+[addresses]
+my_addrx = 'e4980fff867e9e917603daf2370a1ccb614159151f21cc0c72b46eae3d6c6eaa'
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "mainnet"
+subdir = "aptos-framework"
+
+[dev-dependencies]
