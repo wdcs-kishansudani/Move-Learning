@@ -40,6 +40,7 @@ module my_addrx::Registry {
 
         assert!(exists<Registry>(admin_addr), EMODULE_NOT_INITIALIZED);
 
+        // Checking if user owns the resource from another module
         assert!(exists<T>(addr), E_NOT_AUTHORIZED);
 
         let registry = borrow_global_mut<Registry>(admin_addr);
